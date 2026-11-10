@@ -1,0 +1,10 @@
+CREATE TABLE analysis_runs (
+    id VARCHAR(36) PRIMARY KEY,
+    package_name VARCHAR(214) NOT NULL,
+    repository VARCHAR(2048) NOT NULL,
+    test_mode BOOLEAN NOT NULL,
+    ascii_tree BOOLEAN NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    stage INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
