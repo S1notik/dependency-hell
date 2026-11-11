@@ -131,20 +131,28 @@ def send_config(values):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Этап 1: чтение и проверка CSV-конфигурации")
+    parser = argparse.ArgumentParser(description="Этап 2: прямые зависимости npm из CSV-конфигурации")
     parser.add_argument("config", nargs="?", default="config.csv", help="путь к CSV (по умолчанию config.csv)")
     parser.add_argument("--local", action="store_true", help="проверить CSV без запуска API и базы")
     args = parser.parse_args(argv)
     try:
         values = read_config(args.config)
-        result = None if args.local else send_config(values)
+        if args.local:
+            result = None
+        else:
+            if values["test_mode"] == "true":
+                raise ValueError("тестовый граф будет реализован на этапе 3; для получения npm-зависимостей укажите test_mode=false")
+            from stage2 import fetch_direct_dependencies, print_direct_dependencies
+            result = send_config(values)
+            direct = fetch_direct_dependencies(result["id"])
     except ValueError as exc:
         print(f"Ошибка: {exc}", file=sys.stderr)
         return 2
-    for key in ("package", "repository", "test_mode", "ascii_tree"):
-        print(f"{key}={values[key]}")
-    if result:
-        print(f"run_id={result['id']}")
+    if args.local:
+        for key in ("package", "repository", "test_mode", "ascii_tree"):
+            print(f"{key}={values[key]}")
+    else:
+        print_direct_dependencies(direct, result["id"])
     return 0
 
 
