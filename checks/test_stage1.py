@@ -90,9 +90,14 @@ class StageOneChecks(unittest.TestCase):
 
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self):
-                received.append((self.path, json.loads(self.rfile.read(int(self.headers["Content-Length"])))))
-                body = json.dumps({"id": "example-id"}).encode()
-                self.send_response(201)
+                raw = self.rfile.read(int(self.headers["Content-Length"]))
+                received.append((self.path, json.loads(raw) if raw else None))
+                if self.path == "/api/runs":
+                    body = json.dumps({"id": "example-id"}).encode()
+                    self.send_response(201)
+                else:
+                    body = json.dumps({"packageName": "express", "version": "5.0.0", "dependencies": [{"name": "accepts", "versionSpec": "^2.0.0"}]}).encode()
+                    self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
@@ -113,7 +118,23 @@ class StageOneChecks(unittest.TestCase):
             thread.join()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("run_id=example-id", result.stdout)
-        self.assertEqual(received, [("/api/runs", {"packageName": "express", "repository": "https://registry.npmjs.org", "testMode": False, "asciiTree": True})])
+        self.assertIn("accepts: ^2.0.0", result.stdout)
+        self.assertIn("version=5.0.0", result.stdout)
+        self.assertEqual(received, [("/api/runs", {"packageName": "express", "repository": "https://registry.npmjs.org", "testMode": False, "asciiTree": True}), ("/api/runs/example-id/dependencies", None)])
+
+    def test_test_mode_remains_available_for_local_validation(self):
+        (self.dir / "graph.json").write_text('{"A": []}', encoding="utf-8")
+        self.write_config(package="A", repository="graph.json", test_mode="true")
+        result = subprocess.run([sys.executable, str(ROOT / "python/hell.py"), str(self.config), "--local"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("test_mode=true", result.stdout)
+
+    def test_test_mode_reports_not_implemented_for_analysis(self):
+        (self.dir / "graph.json").write_text('{"A": []}', encoding="utf-8")
+        self.write_config(package="A", repository="graph.json", test_mode="true")
+        result = subprocess.run([sys.executable, str(ROOT / "python/hell.py"), str(self.config)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("этапе 3", result.stderr)
 
 
 if __name__ == "__main__":

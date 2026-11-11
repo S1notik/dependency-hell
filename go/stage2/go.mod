@@ -1,0 +1,3 @@
+module dependencyhell/registry
+
+go 1.23
