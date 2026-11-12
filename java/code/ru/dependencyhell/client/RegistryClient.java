@@ -12,6 +12,8 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import ru.dependencyhell.model.ApiModels.DirectDependencies;
 import ru.dependencyhell.model.ApiModels.RegistryRequest;
+import ru.dependencyhell.model.ApiModels.RegistryVersionRequest;
+import ru.dependencyhell.model.ApiModels.RegistryVersions;
 
 @Component
 public class RegistryClient {
@@ -44,6 +46,37 @@ public class RegistryClient {
             throw new ResponseStatusException(status, "Ошибка Go/npm: " + error.getResponseBodyAsString(), error);
         } catch (RestClientException error) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Не удалось обратиться к Go-сервису: " + error.getMessage(), error);
+        }
+    }
+
+    public RegistryVersions versions(String name, String repository) {
+        try {
+            RegistryVersions result = client.post().uri("/api/versions")
+                    .body(new RegistryRequest(name, repository)).retrieve().body(RegistryVersions.class);
+            if (result == null || !name.equals(result.packageName()) || result.versions() == null || result.distTags() == null)
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Go-сервис вернул неполный список версий");
+            return result;
+        } catch (RestClientResponseException error) {
+            HttpStatus status = error.getStatusCode().value() == 404 ? HttpStatus.NOT_FOUND : HttpStatus.BAD_GATEWAY;
+            throw new ResponseStatusException(status, "Ошибка Go/npm: " + error.getResponseBodyAsString(), error);
+        } catch (RestClientException error) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Не удалось получить версии из Go: " + error.getMessage(), error);
+        }
+    }
+
+    public DirectDependencies version(String name, String repository, String version) {
+        try {
+            DirectDependencies result = client.post().uri("/api/version")
+                    .body(new RegistryVersionRequest(name, repository, version)).retrieve().body(DirectDependencies.class);
+            if (result == null || !name.equals(result.packageName()) || !version.equals(result.version()) || result.dependencies() == null
+                    || result.dependencies().stream().anyMatch(d -> d == null || d.name() == null || d.versionSpec() == null))
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Go-сервис вернул неполные зависимости версии");
+            return result;
+        } catch (RestClientResponseException error) {
+            HttpStatus status = error.getStatusCode().value() == 404 ? HttpStatus.NOT_FOUND : HttpStatus.BAD_GATEWAY;
+            throw new ResponseStatusException(status, "Ошибка Go/npm: " + error.getResponseBodyAsString(), error);
+        } catch (RestClientException error) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Не удалось получить зависимости из Go: " + error.getMessage(), error);
         }
     }
 }

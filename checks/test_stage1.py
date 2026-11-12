@@ -111,7 +111,7 @@ class StageOneChecks(unittest.TestCase):
         thread.start()
         try:
             env = dict(os.environ, DEPENDENCY_HELL_API_URL=f"http://127.0.0.1:{server.server_port}")
-            result = subprocess.run([sys.executable, str(ROOT / "python/hell.py"), str(self.config)], capture_output=True, text=True, env=env)
+            result = subprocess.run([sys.executable, str(ROOT / "python/hell.py"), str(self.config), "--direct"], capture_output=True, text=True, env=env)
         finally:
             server.shutdown()
             server.server_close()
@@ -129,12 +129,12 @@ class StageOneChecks(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("test_mode=true", result.stdout)
 
-    def test_test_mode_reports_not_implemented_for_analysis(self):
+    def test_direct_mode_rejects_test_graph(self):
         (self.dir / "graph.json").write_text('{"A": []}', encoding="utf-8")
         self.write_config(package="A", repository="graph.json", test_mode="true")
-        result = subprocess.run([sys.executable, str(ROOT / "python/hell.py"), str(self.config)], capture_output=True, text=True)
+        result = subprocess.run([sys.executable, str(ROOT / "python/hell.py"), str(self.config), "--direct"], capture_output=True, text=True)
         self.assertEqual(result.returncode, 2)
-        self.assertIn("этапе 3", result.stderr)
+        self.assertIn("--direct", result.stderr)
 
 
 if __name__ == "__main__":

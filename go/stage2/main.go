@@ -105,6 +105,7 @@ func sendError(w http.ResponseWriter, status int, message string) {
 
 func makeHandler(client *http.Client) http.Handler {
     mux := http.NewServeMux()
+    registerStage3(mux, client)
     mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
         if r.Method != http.MethodGet {
             sendError(w, http.StatusMethodNotAllowed, "используйте GET")

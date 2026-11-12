@@ -131,28 +131,38 @@ def send_config(values):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Этап 2: прямые зависимости npm из CSV-конфигурации")
+    parser = argparse.ArgumentParser(description="Этап 3: граф зависимостей npm из CSV-конфигурации")
     parser.add_argument("config", nargs="?", default="config.csv", help="путь к CSV (по умолчанию config.csv)")
-    parser.add_argument("--local", action="store_true", help="проверить CSV без запуска API и базы")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--local", action="store_true", help="проверить CSV без запуска API и базы")
+    modes.add_argument("--direct", action="store_true", help="вывести только прямые зависимости как на этапе 2")
     args = parser.parse_args(argv)
     try:
         values = read_config(args.config)
         if args.local:
             result = None
         else:
-            if values["test_mode"] == "true":
-                raise ValueError("тестовый граф будет реализован на этапе 3; для получения npm-зависимостей укажите test_mode=false")
-            from stage2 import fetch_direct_dependencies, print_direct_dependencies
-            result = send_config(values)
-            direct = fetch_direct_dependencies(result["id"])
+            if args.direct:
+                if values["test_mode"] == "true":
+                    raise ValueError("--direct поддерживает только npm-реестр с test_mode=false")
+                from stage2 import fetch_direct_dependencies, print_direct_dependencies
+                result = send_config(values)
+                direct = fetch_direct_dependencies(result["id"])
+            else:
+                from stage3 import read_test_graph, fetch_graph, print_graph
+                test_graph = read_test_graph(args.config, values["repository"], values["package"]) if values["test_mode"] == "true" else None
+                result = send_config(values)
+                graph = fetch_graph(result["id"], test_graph)
     except ValueError as exc:
         print(f"Ошибка: {exc}", file=sys.stderr)
         return 2
     if args.local:
         for key in ("package", "repository", "test_mode", "ascii_tree"):
             print(f"{key}={values[key]}")
-    else:
+    elif args.direct:
         print_direct_dependencies(direct, result["id"])
+    else:
+        print_graph(graph, result["id"])
     return 0
 
 

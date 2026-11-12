@@ -25,6 +25,30 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+  graph:
+    build:
+      context: ./rust/stage3
+      dockerfile: Dockerfile
+    environment:
+      SPRING_INTERNAL_URL: http://api:8080
+    ports:
+      - "127.0.0.1:8082:8082"
+    healthcheck:
+      test: ["CMD", "/graph", "--healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+  versions:
+    build:
+      context: ./csharp/stage3
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8083:8083"
+    healthcheck:
+      test: ["CMD", "dotnet", "/app/Resolver.dll", "--healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
   api:
     build:
       context: .
@@ -34,12 +58,18 @@ services:
       DB_USER: hell
       DB_PASSWORD: hell_local
       REGISTRY_ADAPTER_URL: http://registry:8081
+      GRAPH_SERVICE_URL: http://graph:8082
+      VERSION_RESOLVER_URL: http://versions:8083
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
       registry:
+        condition: service_healthy
+      graph:
+        condition: service_healthy
+      versions:
         condition: service_healthy
 volumes:
   dependency_hell_data:
