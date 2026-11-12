@@ -1,9 +1,11 @@
 package ru.dependencyhell.order
 
+import org.springframework.stereotype.Component
+
 // Проверяем ответ Rust перед сохранением: зависимость должна стоять раньше своего потребителя.
-object LoadOrderValidation {
-    @JvmStatic
-    fun problem(nodes: List<String>, dependencies: Map<String, List<String>>, order: List<String>): String? {
+@Component
+class LoadOrderValidation : OrderValidator {
+    override fun problem(nodes: List<String>, dependencies: Map<String, List<String>>, order: List<String>): String? {
         if (nodes.size != nodes.toSet().size || order.size != nodes.size || order.toSet() != nodes.toSet()) {
             return "порядок должен содержать каждую вершину ровно один раз"
         }

@@ -131,12 +131,13 @@ def send_config(values):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Этап 4: порядок загрузки зависимостей npm из CSV-конфигурации")
+    parser = argparse.ArgumentParser(description="Этап 5: текст графа зависимостей npm из CSV-конфигурации")
     parser.add_argument("config", nargs="?", default="config.csv", help="путь к CSV (по умолчанию config.csv)")
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--local", action="store_true", help="проверить CSV без запуска API и базы")
     modes.add_argument("--direct", action="store_true", help="вывести только прямые зависимости как на этапе 2")
     modes.add_argument("--graph", action="store_true", help="вывести граф и порядок DFS как на этапе 3")
+    modes.add_argument("--order", action="store_true", help="вывести порядок загрузки как на этапе 4")
     parser.add_argument("--json", action="store_true", help="вернуть граф и порядок этапа 4 в JSON для сравнения с npm")
     args = parser.parse_args(argv)
     if args.json and (args.local or args.direct or args.graph):
@@ -157,9 +158,12 @@ def main(argv=None):
                 test_graph = read_test_graph(args.config, values["repository"], values["package"]) if values["test_mode"] == "true" else None
                 result = send_config(values)
                 graph = fetch_graph(result["id"], test_graph)
-                if not args.graph:
+                if args.order or args.json:
                     from stage4 import fetch_load_order, print_load_order
                     order = fetch_load_order(result["id"])
+                elif not args.graph:
+                    from stage5 import fetch_visualization, print_visualization
+                    visual = fetch_visualization(result["id"], values["ascii_tree"] == "true")
     except ValueError as exc:
         print(f"Ошибка: {exc}", file=sys.stderr)
         return 2
@@ -172,8 +176,10 @@ def main(argv=None):
         print_graph(graph, result["id"])
     elif args.json:
         print(json.dumps({"runId": result["id"], "graph": graph, "order": order}, ensure_ascii=False))
-    else:
+    elif args.order:
         print_load_order(graph["root"], order, result["id"])
+    else:
+        print_visualization(visual, result["id"])
     return 0
 
 

@@ -35,7 +35,7 @@ class LoadOrderServiceTest {
             List.of(new GraphEdge("A", "B", false), new GraphEdge("B", "C", false), new GraphEdge("A", "C", false)), List.of("A", "B", "C"));
     }
     private static LoadOrderService service(GraphResult graph, LoadOrder order, FakeRepo repo) {
-        return new LoadOrderService(new FakeGraph(graph), new FakeClient(order), repo, new LoadOrderStorageService(repo));
+        return new LoadOrderService(new FakeGraph(graph), new FakeClient(order), repo, new LoadOrderStorageService(repo), KotlinImplementations.orderValidator());
     }
     @Test void savesAndRetrievesDependenciesFirst() {
         FakeRepo repo = new FakeRepo();

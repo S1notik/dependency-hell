@@ -12,7 +12,7 @@ import ru.dependencyhell.model.ApiModels.GraphEdge;
 import ru.dependencyhell.model.ApiModels.GraphNode;
 import ru.dependencyhell.model.ApiModels.GraphResult;
 import ru.dependencyhell.model.ApiModels.LoadOrder;
-import ru.dependencyhell.order.LoadOrderValidation;
+import ru.dependencyhell.order.OrderValidator;
 import ru.dependencyhell.repository.LoadOrderRepository;
 
 @Service
@@ -21,12 +21,14 @@ public class LoadOrderService {
     private final GraphClient graphClient;
     private final LoadOrderRepository repository;
     private final LoadOrderStorageService storage;
+    private final OrderValidator validator;
 
-    public LoadOrderService(GraphService graphs, GraphClient graphClient, LoadOrderRepository repository, LoadOrderStorageService storage) {
+    public LoadOrderService(GraphService graphs, GraphClient graphClient, LoadOrderRepository repository, LoadOrderStorageService storage, OrderValidator validator) {
         this.graphs = graphs;
         this.graphClient = graphClient;
         this.repository = repository;
         this.storage = storage;
+        this.validator = validator;
     }
 
     public LoadOrder build(String id) {
@@ -56,7 +58,7 @@ public class LoadOrderService {
         if (!cycles.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "При цикле строгий порядок невозможен");
         Map<String, List<String>> dependencies = new HashMap<>();
         for (GraphEdge edge : graph.edges()) dependencies.computeIfAbsent(edge.from(), key -> new ArrayList<>()).add(edge.to());
-        String problem = LoadOrderValidation.problem(graph.nodes().stream().map(GraphNode::id).toList(), dependencies, order.packages());
+        String problem = validator.problem(graph.nodes().stream().map(GraphNode::id).toList(), dependencies, order.packages());
         if (problem != null) throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Некорректный порядок: " + problem);
     }
 }

@@ -36,7 +36,7 @@ class StageFourChecks(unittest.TestCase):
         thread.start()
         try:
             env = dict(os.environ, DEPENDENCY_HELL_API_URL=f"http://127.0.0.1:{server.server_port}")
-            result = subprocess.run([sys.executable, str(ROOT / "python/hell.py"), str(ROOT / "examples/test/config.csv"), *options], capture_output=True, text=True, env=env)
+            result = subprocess.run([sys.executable, str(ROOT / "python/hell.py"), str(ROOT / "examples/test/config.csv"), "--order", *options], capture_output=True, text=True, env=env)
         finally:
             server.shutdown(); server.server_close(); thread.join()
         return result, requests

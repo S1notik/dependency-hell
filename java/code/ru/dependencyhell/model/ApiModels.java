@@ -30,4 +30,6 @@ public final class ApiModels {
     public record GraphEdge(String from, String to, boolean cycle) { }
     public record GraphResult(String root, List<GraphNode> nodes, List<GraphEdge> edges, List<String> visitOrder) { }
     public record LoadOrder(Boolean possible, List<String> packages, List<GraphEdge> cycleEdges) { }
+    public record AsciiTree(String asciiTree) { }
+    public record Visualization(String mermaid, String asciiTree) { }
 }

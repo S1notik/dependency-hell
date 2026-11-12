@@ -33,7 +33,7 @@
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId><artifactId>kotlin-maven-plugin</artifactId><version>${hell.kotlin.version}</version>
                 <executions><execution><id>compile-kotlin</id><phase>process-sources</phase><goals><goal>compile</goal></goals>
-                    <configuration><jvmTarget>21</jvmTarget><sourceDirs><sourceDir>${project.basedir}/../kotlin</sourceDir></sourceDirs></configuration>
+                    <configuration><jvmTarget>21</jvmTarget><sourceDirs><sourceDir>${project.basedir}/../kotlin</sourceDir><sourceDir>${project.basedir}/code</sourceDir></sourceDirs></configuration>
                 </execution></executions>
             </plugin>
             <plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin>

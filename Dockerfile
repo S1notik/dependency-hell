@@ -4,8 +4,9 @@ COPY java/pom.xml java/pom.xml
 COPY java/code java/code
 COPY java/settings java/settings
 COPY kotlin kotlin
+COPY checks/java checks/java
 COPY database/migrations database/migrations
-RUN mvn -f java/pom.xml -B -Dmaven.test.skip=true package
+RUN mvn -f java/pom.xml -B package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app

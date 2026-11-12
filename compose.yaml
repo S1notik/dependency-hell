@@ -49,6 +49,17 @@ services:
       interval: 5s
       timeout: 4s
       retries: 20
+  tree:
+    build:
+      context: ./javascript
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8084:8084"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8084/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
   api:
     build:
       context: .
@@ -60,6 +71,7 @@ services:
       REGISTRY_ADAPTER_URL: http://registry:8081
       GRAPH_SERVICE_URL: http://graph:8082
       VERSION_RESOLVER_URL: http://versions:8083
+      TREE_SERVICE_URL: http://tree:8084
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
@@ -70,6 +82,8 @@ services:
       graph:
         condition: service_healthy
       versions:
+        condition: service_healthy
+      tree:
         condition: service_healthy
 volumes:
   dependency_hell_data:
