@@ -60,10 +60,11 @@ func getStage3Metadata(input RegistryRequest, client *http.Client) (Metadata, in
         return empty, http.StatusBadRequest, fmt.Errorf("некорректный URL: %w", err)
     }
     request.Header.Set("Accept", "application/vnd.npm.install-v1+json, application/json")
-    response, err := client.Do(request)
+    response, cancel, err := registryDo(client, request)
     if err != nil {
         return empty, http.StatusBadGateway, fmt.Errorf("ошибка обращения к реестру: %w", err)
     }
+    defer cancel()
     defer response.Body.Close()
     if response.StatusCode == http.StatusNotFound {
         return empty, http.StatusNotFound, fmt.Errorf("пакет %s не найден", input.PackageName)

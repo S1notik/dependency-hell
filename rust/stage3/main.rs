@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::io::Read;
 use std::time::Duration;
 use tiny_http::{Header, Method, Response, Server, StatusCode};
@@ -50,6 +50,14 @@ struct Graph {
     nodes: Vec<Node>,
     edges: Vec<Edge>,
     visit_order: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LoadOrder {
+    possible: bool,
+    packages: Vec<String>,
+    cycle_edges: Vec<Edge>,
 }
 
 #[derive(Deserialize)]
@@ -137,6 +145,47 @@ fn graph_from_test(root: &str, map: &BTreeMap<String, Vec<String>>) -> Result<Gr
     build_graph(test_package(root, map), |requirement| Ok(test_package(&requirement.name, map)))
 }
 
+// Ребро from -> to означает: сначала нужна зависимость to, затем пакет from.
+fn calculate_load_order(graph: &Graph) -> Result<LoadOrder, String> {
+    if graph.nodes.is_empty() || graph.nodes.len() > 10000 || graph.edges.len() > 50000 {
+        return Err("Некорректный размер графа".into());
+    }
+    let mut ids: HashMap<&str, usize> = HashMap::new();
+    for (index, node) in graph.nodes.iter().enumerate() {
+        if node.id.is_empty() || ids.insert(&node.id, index).is_some() {
+            return Err("В графе есть пустая или повторяющаяся вершина".into());
+        }
+    }
+    if !ids.contains_key(graph.root.as_str()) { return Err("Корень отсутствует в графе".into()); }
+    let mut pending = vec![0usize; graph.nodes.len()];
+    let mut dependents = vec![Vec::<usize>::new(); graph.nodes.len()];
+    let mut seen = HashSet::new();
+    for edge in &graph.edges {
+        let parent = *ids.get(edge.from.as_str()).ok_or("Неизвестная вершина ребра")?;
+        let dependency = *ids.get(edge.to.as_str()).ok_or("Неизвестная зависимость ребра")?;
+        if !seen.insert((parent, dependency)) { return Err("Повторяющееся ребро графа".into()); }
+        pending[parent] += 1;
+        dependents[dependency].push(parent);
+    }
+    let mut ready: VecDeque<usize> = pending.iter().enumerate()
+        .filter_map(|(index, count)| if *count == 0 { Some(index) } else { None }).collect();
+    let mut order = Vec::with_capacity(graph.nodes.len());
+    while let Some(dependency) = ready.pop_front() {
+        order.push(graph.nodes[dependency].id.clone());
+        for &parent in &dependents[dependency] {
+            pending[parent] -= 1;
+            if pending[parent] == 0 { ready.push_back(parent); }
+        }
+    }
+    let cycle_edges: Vec<Edge> = graph.edges.iter().filter(|edge| edge.cycle).cloned().collect();
+    if order.len() != graph.nodes.len() {
+        if cycle_edges.is_empty() { return Err("Цикл не отмечен обратным ребром DFS".into()); }
+        return Ok(LoadOrder { possible: false, packages: Vec::new(), cycle_edges });
+    }
+    if !cycle_edges.is_empty() { return Err("Ациклический граф ошибочно содержит отметку цикла".into()); }
+    Ok(LoadOrder { possible: true, packages: order, cycle_edges: Vec::new() })
+}
+
 fn resolve_remote(agent: &ureq::Agent, api: &str, repository: &str, name: &str, spec: &str) -> Result<Package, String> {
     let address = format!("{}/api/internal/resolve", api.trim_end_matches('/'));
     let response = agent.post(&address).send_json(serde_json::json!({"name": name, "versionSpec": spec, "repository": repository}));
@@ -173,13 +222,23 @@ fn process(input: GraphRequest, api: &str) -> Result<Graph, String> {
 fn handle(mut request: tiny_http::Request, api: &str) {
     let is_health = request.method() == &Method::Get && request.url() == "/health";
     let is_graph = request.method() == &Method::Post && request.url() == "/api/graph";
+    let is_order = request.method() == &Method::Post && request.url() == "/api/order";
     let (status, body) = if is_health {
         (200, serde_json::json!({"status":"UP"}))
-    } else if is_graph {
+    } else if is_graph || is_order {
         let mut bytes = Vec::new();
-        let read = request.as_reader().take(10 * 1024 * 1024 + 1).read_to_end(&mut bytes);
-        if read.is_err() || bytes.len() > 10 * 1024 * 1024 {
-            (400, serde_json::json!({"error":"Не удалось прочитать запрос или он больше 10 МиБ"}))
+        let limit = if is_order { 64 * 1024 * 1024 } else { 10 * 1024 * 1024 };
+        let read = request.as_reader().take((limit + 1) as u64).read_to_end(&mut bytes);
+        if read.is_err() || bytes.len() > limit {
+            (400, serde_json::json!({"error":format!("Не удалось прочитать запрос или он больше {} МиБ", limit / 1024 / 1024)}))
+        } else if is_order {
+            match serde_json::from_slice::<Graph>(&bytes) {
+                Err(error) => (400, serde_json::json!({"error": format!("Некорректный граф: {}", error)})),
+                Ok(graph) => match calculate_load_order(&graph) {
+                    Ok(order) => (200, serde_json::to_value(order).unwrap()),
+                    Err(error) => (400, serde_json::json!({"error": error})),
+                },
+            }
         } else {
             match serde_json::from_slice::<GraphRequest>(&bytes) {
                 Err(error) => (400, serde_json::json!({"error": format!("Некорректный JSON: {}", error)})),
@@ -251,6 +310,37 @@ mod checks {
         let names: Vec<String> = (0..1500).map(label).collect();
         for pair in names.windows(2) { data.insert(pair[0].clone(), vec![pair[1].clone()]); }
         data.insert(names.last().unwrap().clone(), vec![]);
-        assert_eq!(graph_from_test(&names[0], &data).unwrap().nodes.len(), names.len());
+        let result = graph_from_test(&names[0], &data).unwrap();
+        assert_eq!(result.nodes.len(), names.len());
+        let order = calculate_load_order(&result).unwrap();
+        assert_eq!(order.packages.first(), names.last());
+        assert_eq!(order.packages.last(), names.first());
+    }
+
+    #[test]
+    fn load_order_puts_dependencies_first_and_handles_shared_nodes() {
+        let data = graph(&[("A", &["B", "C"]), ("B", &["D"]), ("C", &["D"]), ("D", &[])]);
+        let result = calculate_load_order(&graph_from_test("A", &data).unwrap()).unwrap();
+        assert!(result.possible);
+        assert_eq!(result.packages, vec!["D", "B", "C", "A"]);
+        assert!(result.cycle_edges.is_empty());
+    }
+
+    #[test]
+    fn load_order_rejects_cycles_including_self_loops() {
+        for data in [graph(&[("A", &["B"]), ("B", &["A"])]), graph(&[("A", &["A"])])] {
+            let result = calculate_load_order(&graph_from_test("A", &data).unwrap()).unwrap();
+            assert!(!result.possible);
+            assert!(result.packages.is_empty());
+            assert_eq!(result.cycle_edges.len(), 1);
+        }
+    }
+
+    #[test]
+    fn load_order_supports_a_single_package_and_validates_edges() {
+        let mut one = graph_from_test("A", &graph(&[("A", &[])])).unwrap();
+        assert_eq!(calculate_load_order(&one).unwrap().packages, vec!["A"]);
+        one.edges.push(Edge { from: "A".into(), to: "MISSING".into(), cycle: false });
+        assert!(calculate_load_order(&one).is_err());
     }
 }

@@ -1,6 +1,6 @@
 FROM golang:1.23-alpine AS build
 WORKDIR /service
-COPY go.mod main.go stage3.go practice.go main_test.go stage3_test.go ./
+COPY go.mod main.go stage3.go main_test.go stage3_test.go ./
 RUN go test ./... && CGO_ENABLED=0 go build -o /registry .
 
 FROM alpine:3.20

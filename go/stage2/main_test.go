@@ -1,13 +1,60 @@
 package main
 
 import (
+    "context"
     "encoding/json"
+    "errors"
+    "io"
     "net/http"
     "net/http/httptest"
     "strings"
     "testing"
     "time"
 )
+
+type timeoutFailure struct{}
+func (timeoutFailure) Error() string { return "temporary network timeout" }
+func (timeoutFailure) Timeout() bool { return true }
+func (timeoutFailure) Temporary() bool { return true }
+type roundTripFunc func(*http.Request) (*http.Response, error)
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) { return f(request) }
+type contextBody struct { ctx context.Context; reader io.Reader }
+func (body *contextBody) Read(buffer []byte) (int, error) {
+    if err := body.ctx.Err(); err != nil { return 0, err }
+    return body.reader.Read(buffer)
+}
+func (body *contextBody) Close() error { return nil }
+
+func TestRetryAfterTimeoutForBothRegistryPaths(t *testing.T) {
+    for _, stage3 := range []bool{false, true} {
+        calls := 0
+        client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+            calls++
+            if calls == 1 { return nil, timeoutFailure{} }
+            return &http.Response{StatusCode: 200, Header: make(http.Header), Request: request,
+                Body: &contextBody{ctx: request.Context(), reader: strings.NewReader(`{"dist-tags":{"latest":"1.0.0"},"versions":{"1.0.0":{"dependencies":{"child":"^1"}}}}`)}}, nil
+        })}
+        input := RegistryRequest{PackageName: "retry-test", Repository: "https://example.invalid"}
+        if stage3 {
+            result, status, err := stage3Versions(input, client)
+            if err != nil || status != http.StatusOK || result.DistTags["latest"] != "1.0.0" { t.Fatalf("versions: %#v %d %v", result, status, err) }
+        } else {
+            result, status, err := fetchDirect(input, client)
+            if err != nil || status != http.StatusOK || result.Version != "1.0.0" || len(result.Dependencies) != 1 { t.Fatalf("direct: %#v %d %v", result, status, err) }
+        }
+        if calls != 2 { t.Fatalf("expected two attempts, got %d", calls) }
+    }
+}
+
+func TestRegistryDoesNotRetryNonTimeoutError(t *testing.T) {
+    calls := 0
+    client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+        calls++
+        return nil, errors.New("permanent connection error")
+    })}
+    _, status, err := fetchDirect(RegistryRequest{PackageName: "retry-test", Repository: "https://example.invalid"}, client)
+    if err == nil || status != http.StatusBadGateway || calls != 1 { t.Fatalf("status=%d calls=%d error=%v", status, calls, err) }
+}
 
 func TestFetchLatestAndDirectDependencies(t *testing.T) {
     var requestedURI, accept string

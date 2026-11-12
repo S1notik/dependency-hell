@@ -1,9 +1,12 @@
 package main
 
 import (
+    "context"
     "encoding/json"
+    "errors"
     "fmt"
     "io"
+    "net"
     "net/http"
     "net/url"
     "regexp"
@@ -35,6 +38,31 @@ type Metadata struct {
 
 var packagePattern = regexp.MustCompile(`^(?:@[a-z0-9][a-z0-9._~-]*/)?[a-z0-9][a-z0-9._~-]*$`)
 
+// Для временного тайм-аута делаем ещё одну попытку в пределах общего времени запроса.
+func registryDo(client *http.Client, request *http.Request) (*http.Response, context.CancelFunc, error) {
+    ctx, cancel := context.WithTimeout(request.Context(), 26*time.Second)
+    for attempt := 0; attempt < 2; attempt++ {
+        response, err := client.Do(request.Clone(ctx))
+        if err == nil { return response, cancel, nil }
+        var networkError net.Error
+        if attempt != 0 || ctx.Err() != nil || !errors.As(err, &networkError) || !networkError.Timeout() {
+            cancel()
+            return nil, nil, err
+        }
+        timer := time.NewTimer(250 * time.Millisecond)
+        select {
+        case <-ctx.Done():
+            timer.Stop()
+            err := ctx.Err()
+            cancel()
+            return nil, nil, err
+        case <-timer.C:
+        }
+    }
+    cancel()
+    return nil, nil, fmt.Errorf("не удалось обратиться к реестру")
+}
+
 // Получаем метаданные без npm CLI и библиотек для разрешения зависимостей.
 func fetchDirect(input RegistryRequest, client *http.Client) (DirectDependencies, int, error) {
     empty := DirectDependencies{}
@@ -51,10 +79,11 @@ func fetchDirect(input RegistryRequest, client *http.Client) (DirectDependencies
         return empty, http.StatusBadRequest, fmt.Errorf("не удалось сформировать URL: %w", err)
     }
     request.Header.Set("Accept", "application/vnd.npm.install-v1+json, application/json")
-    response, err := client.Do(request)
+    response, cancel, err := registryDo(client, request)
     if err != nil {
         return empty, http.StatusBadGateway, fmt.Errorf("ошибка обращения к реестру: %w", err)
     }
+    defer cancel()
     defer response.Body.Close()
     if response.StatusCode == http.StatusNotFound {
         return empty, http.StatusNotFound, fmt.Errorf("пакет %s не найден в реестре", input.PackageName)
@@ -139,7 +168,9 @@ func makeHandler(client *http.Client) http.Handler {
 }
 
 func main() {
-    client := &http.Client{Timeout: 20 * time.Second}
+    transport := http.DefaultTransport.(*http.Transport).Clone()
+    transport.TLSHandshakeTimeout = 12 * time.Second
+    client := &http.Client{Timeout: 20 * time.Second, Transport: transport}
     fmt.Println("Go registry adapter listening on :8081")
     server := &http.Server{Addr: ":8081", Handler: makeHandler(client), ReadHeaderTimeout: 5 * time.Second}
     if err := server.ListenAndServe(); err != nil {

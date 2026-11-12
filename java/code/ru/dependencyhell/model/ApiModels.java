@@ -29,4 +29,5 @@ public final class ApiModels {
     public record GraphNode(String id, String name, String version) { }
     public record GraphEdge(String from, String to, boolean cycle) { }
     public record GraphResult(String root, List<GraphNode> nodes, List<GraphEdge> edges, List<String> visitOrder) { }
+    public record LoadOrder(Boolean possible, List<String> packages, List<GraphEdge> cycleEdges) { }
 }

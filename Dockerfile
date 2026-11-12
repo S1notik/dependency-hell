@@ -3,6 +3,7 @@ WORKDIR /project
 COPY java/pom.xml java/pom.xml
 COPY java/code java/code
 COPY java/settings java/settings
+COPY kotlin kotlin
 COPY database/migrations database/migrations
 RUN mvn -f java/pom.xml -B -Dmaven.test.skip=true package
 

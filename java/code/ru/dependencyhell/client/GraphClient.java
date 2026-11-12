@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import ru.dependencyhell.model.ApiModels.GraphRequest;
 import ru.dependencyhell.model.ApiModels.GraphResult;
+import ru.dependencyhell.model.ApiModels.LoadOrder;
 
 @Component
 public class GraphClient {
@@ -36,6 +37,19 @@ public class GraphClient {
         } catch (RestClientResponseException error) {
             HttpStatus status = error.getStatusCode().is4xxClientError() ? HttpStatus.BAD_REQUEST : HttpStatus.BAD_GATEWAY;
             throw new ResponseStatusException(status, "Ошибка Rust: " + error.getResponseBodyAsString(), error);
+        } catch (RestClientException error) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Не удалось обратиться к Rust: " + error.getMessage(), error);
+        }
+    }
+
+    public LoadOrder order(GraphResult graph) {
+        try {
+            LoadOrder result = client.post().uri("/api/order").body(graph).retrieve().body(LoadOrder.class);
+            if (result == null || result.possible() == null || result.packages() == null || result.cycleEdges() == null)
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Rust вернул неполный порядок загрузки");
+            return result;
+        } catch (RestClientResponseException error) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Ошибка Rust: " + error.getResponseBodyAsString(), error);
         } catch (RestClientException error) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Не удалось обратиться к Rust: " + error.getMessage(), error);
         }

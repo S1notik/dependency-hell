@@ -13,8 +13,21 @@ import org.springframework.web.client.RestClient;
 import ru.dependencyhell.client.GraphClient;
 import ru.dependencyhell.client.VersionClient;
 import ru.dependencyhell.model.ApiModels.GraphRequest;
+import ru.dependencyhell.model.ApiModels.GraphResult;
+import ru.dependencyhell.model.ApiModels.GraphNode;
+import ru.dependencyhell.model.ApiModels.GraphEdge;
 
 class Stage3ClientsTest {
+    @Test void rustLoadOrderContractMatchesJson() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://graph:8082");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://graph:8082/api/order"))
+            .andExpect(content().json("{\"root\":\"A\",\"nodes\":[{\"id\":\"A\",\"name\":\"A\",\"version\":null},{\"id\":\"B\",\"name\":\"B\",\"version\":null}],\"edges\":[{\"from\":\"A\",\"to\":\"B\",\"cycle\":false}],\"visitOrder\":[\"A\",\"B\"]}"))
+            .andRespond(withSuccess("{\"possible\":true,\"packages\":[\"B\",\"A\"],\"cycleEdges\":[]}", MediaType.APPLICATION_JSON));
+        GraphResult graph = new GraphResult("A", List.of(new GraphNode("A", "A", null), new GraphNode("B", "B", null)), List.of(new GraphEdge("A", "B", false)), List.of("A", "B"));
+        assertEquals(List.of("B", "A"), new GraphClient(builder.build()).order(graph).packages());
+        server.verify();
+    }
     @Test void rustGraphContractMatchesJson() {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://graph:8082");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

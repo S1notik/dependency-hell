@@ -58,7 +58,7 @@ class StageThreeChecks(unittest.TestCase):
         thread.start()
         try:
             env = dict(os.environ, DEPENDENCY_HELL_API_URL=f"http://127.0.0.1:{server.server_port}")
-            result = subprocess.run([sys.executable, str(ROOT / "python/hell.py"), str(self.config)], capture_output=True, text=True, env=env)
+            result = subprocess.run([sys.executable, str(ROOT / "python/hell.py"), str(self.config), "--graph"], capture_output=True, text=True, env=env)
         finally:
             server.shutdown(); server.server_close(); thread.join()
         self.assertEqual(result.returncode, 0, result.stderr)
