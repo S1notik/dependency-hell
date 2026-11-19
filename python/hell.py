@@ -131,7 +131,7 @@ def send_config(values):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Этап 5: текст графа зависимостей npm из CSV-конфигурации")
+    parser = argparse.ArgumentParser(description="Этап 5: визуализация графа зависимостей npm из CSV-конфигурации")
     parser.add_argument("config", nargs="?", default="config.csv", help="путь к CSV (по умолчанию config.csv)")
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--local", action="store_true", help="проверить CSV без запуска API и базы")
@@ -139,9 +139,13 @@ def main(argv=None):
     modes.add_argument("--graph", action="store_true", help="вывести граф и порядок DFS как на этапе 3")
     modes.add_argument("--order", action="store_true", help="вывести порядок загрузки как на этапе 4")
     parser.add_argument("--json", action="store_true", help="вернуть граф и порядок этапа 4 в JSON для сравнения с npm")
+    parser.add_argument("--svg", metavar="ФАЙЛ", help="сохранить изображение графа в выбранный SVG-файл")
+    parser.add_argument("--no-open", action="store_true", help="создать SVG, но не открывать изображение автоматически")
     args = parser.parse_args(argv)
     if args.json and (args.local or args.direct or args.graph):
         parser.error("--json применяется к выводу порядка загрузки")
+    if (args.svg or args.no_open) and (args.local or args.direct or args.graph or args.order or args.json):
+        parser.error("--svg и --no-open применяются к визуализации по умолчанию")
     try:
         values = read_config(args.config)
         if args.local:
@@ -163,7 +167,9 @@ def main(argv=None):
                     order = fetch_load_order(result["id"])
                 elif not args.graph:
                     from stage5 import fetch_visualization, print_visualization
+                    from svg_graph import save_svg, open_svg
                     visual = fetch_visualization(result["id"], values["ascii_tree"] == "true")
+                    image = save_svg(graph, args.svg)
     except ValueError as exc:
         print(f"Ошибка: {exc}", file=sys.stderr)
         return 2
@@ -180,6 +186,9 @@ def main(argv=None):
         print_load_order(graph["root"], order, result["id"])
     else:
         print_visualization(visual, result["id"])
+        print(f"Изображение SVG: {image}")
+        if not args.no_open and not open_svg(image):
+            print("Не удалось открыть изображение автоматически. Откройте SVG-файл по указанному пути.", file=sys.stderr)
     return 0
 
 
