@@ -23,3 +23,31 @@ func TestStage3VersionsSpecificAndCache(t *testing.T) {
     _, status, err = stage3Specific(VersionRequest{PackageName: "sample", Repository: registry.URL, Version: "9.9.9"}, registry.Client())
     if err == nil || status != 404 { t.Fatalf("отсутствующая версия: %d %v", status, err) }
 }
+
+func TestStage3MetadataReportsRegistryErrors(t *testing.T) {
+    cases := []struct {
+        name       string
+        status     int
+        body       string
+        wantStatus int
+    }{
+        {name: "missing package", status: http.StatusNotFound, wantStatus: http.StatusNotFound},
+        {name: "registry error", status: http.StatusInternalServerError, wantStatus: http.StatusBadGateway},
+        {name: "invalid JSON", status: http.StatusOK, body: "{", wantStatus: http.StatusBadGateway},
+        {name: "no versions", status: http.StatusOK, body: `{"versions":{}}`, wantStatus: http.StatusBadGateway},
+    }
+    for _, tc := range cases {
+        t.Run(tc.name, func(t *testing.T) {
+            registry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+                w.WriteHeader(tc.status)
+                _, _ = w.Write([]byte(tc.body))
+            }))
+            defer registry.Close()
+            input := RegistryRequest{PackageName: "sample", Repository: registry.URL}
+            _, status, err := getStage3Metadata(input, registry.Client())
+            if err == nil || status != tc.wantStatus {
+                t.Fatalf("expected status %d and error, got %d, %v", tc.wantStatus, status, err)
+            }
+        })
+    }
+}

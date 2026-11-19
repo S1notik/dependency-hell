@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="48b1ba9a-d979-4c06-838a-377989703fda" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checks/test_stage3.py" beforeDir="false" afterPath="$PROJECT_DIR$/checks/test_stage3.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/csharp/stage3/VersionResolver.cs" beforeDir="false" afterPath="$PROJECT_DIR$/csharp/stage3/VersionResolver.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/go/stage2/stage3.go" beforeDir="false" afterPath="$PROJECT_DIR$/go/stage2/stage3.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/go/stage2/stage3_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/go/stage2/stage3_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/javascript/tree-service.js" beforeDir="false" afterPath="$PROJECT_DIR$/javascript/tree-service.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/kotlin/MermaidRenderer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/kotlin/MermaidRenderer.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust/stage3/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/rust/stage3/main.rs" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;S1notik&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/S1notik/dependency-hell.git&quot;,
+    &quot;accountId&quot;: &quot;c3dc87e0-3986-449c-8042-c7508b241c02&quot;
+  }
+}</component>
+  <component name="GradleModuleStateConfig" initialized="true" />
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 6
+}</component>
+  <component name="ProjectId" id="3M13TpF5Mop5rEv13H2ZIQEEDsb" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/syoma/dependency-hell&quot;
+  }
+}</component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="48b1ba9a-d979-4c06-838a-377989703fda" name="Changes" comment="" />
+      <created>1794504256491</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1794504256491</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="UnknownFeatures">
+    <option featureType="com.intellij.fileTypeFactory" implementationName="*.env" />
+    <option featureType="com.intellij.fileTypeFactory" implementationName=".env" />
+  </component>
+</project>

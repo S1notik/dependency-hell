@@ -10,6 +10,13 @@ function failure(message, status = 400) {
     return error;
 }
 
+// Собираем строку ветки и возвращаем пометку, чтобы не обходить цикл повторно.
+function append_ASCII_line(append, prefix, last, child, active, seen, cycleNote, seenNote) {
+    const marker = active.has(child) ? cycleNote : seen.has(child) ? seenNote : "";
+    append(`${prefix}${last ? "`-- " : "|-- "}${child}${marker}`);
+    return marker;
+}
+
 // Обход стека без рекурсии позволяет отличать цикл от повторно встреченной вершины.
 function buildAsciiTree(graph) {
     if (!graph || typeof graph.root !== "string" || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges) ||
@@ -54,8 +61,7 @@ function buildAsciiTree(graph) {
         const index = frame.next++;
         const child = nextNodes[index];
         const last = index === nextNodes.length - 1;
-        const marker = active.has(child) ? " [цикл]" : seen.has(child) ? " [уже показан]" : "";
-        append(`${frame.prefix}${last ? "`-- " : "|-- "}${child}${marker}`);
+        const marker = append_ASCII_line(append, frame.prefix, last, child, active, seen, " [цикл]", " [уже показан]");
         if (!marker) {
             seen.add(child);
             active.add(child);

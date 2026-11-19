@@ -74,6 +74,31 @@ struct Frame {
     next: usize,
 }
 
+// Добавляем ребро и новую вершину в состояние обхода.
+fn recordDfsStep(
+    parent: String,
+    child: Package,
+    id: String,
+    state: u8,
+    seen_edges: &mut HashSet<(String, String)>,
+    graph: &mut Graph,
+    states: &mut HashMap<String, u8>,
+    stack: &mut Vec<Frame>,
+) -> Result<(), String> {
+    if seen_edges.insert((parent.clone(), id.clone())) {
+        if graph.edges.len() >= 50000 { return Err("Граф превышает лимит 50000 связей".to_string()); }
+        graph.edges.push(Edge { from: parent, to: id.clone(), cycle: state == 1 });
+    }
+    if state == 0 {
+        if graph.nodes.len() >= 10000 { return Err("Граф превышает лимит 10000 пакетов".to_string()); }
+        states.insert(id.clone(), 1);
+        graph.visit_order.push(id.clone());
+        graph.nodes.push(Node { id, name: child.name.clone(), version: child.version.clone() });
+        stack.push(Frame { package: child, next: 0 });
+    }
+    Ok(())
+}
+
 // DFS использует явный стек кадров, а не рекурсивные вызовы.
 fn build_graph<F>(root: Package, mut resolve: F) -> Result<Graph, String>
 where
@@ -102,17 +127,7 @@ where
             let child = resolve(&requirement)?;
             let id = child.id();
             let state = states.get(&id).copied().unwrap_or(0);
-            if seen_edges.insert((parent.clone(), id.clone())) {
-                if graph.edges.len() >= 50000 { return Err("Граф превышает лимит 50000 связей".to_string()); }
-                graph.edges.push(Edge { from: parent, to: id.clone(), cycle: state == 1 });
-            }
-            if state == 0 {
-                if graph.nodes.len() >= 10000 { return Err("Граф превышает лимит 10000 пакетов".to_string()); }
-                states.insert(id.clone(), 1);
-                graph.visit_order.push(id.clone());
-                graph.nodes.push(Node { id, name: child.name.clone(), version: child.version.clone() });
-                stack.push(Frame { package: child, next: 0 });
-            }
+            recordDfsStep(parent, child, id, state, &mut seen_edges, &mut graph, &mut states, &mut stack)?;
         } else {
             let finished = stack.pop().unwrap();
             states.insert(finished.package.id(), 2);
@@ -156,14 +171,18 @@ fn calculate_load_order(graph: &Graph) -> Result<LoadOrder, String> {
             return Err("В графе есть пустая или повторяющаяся вершина".into());
         }
     }
-    if !ids.contains_key(graph.root.as_str()) { return Err("Корень отсутствует в графе".into()); }
+    if !ids.contains_key(graph.root.as_str()) {
+        return Err("Корень отсутствует в графе".into());
+    }
     let mut pending = vec![0usize; graph.nodes.len()];
     let mut dependents = vec![Vec::<usize>::new(); graph.nodes.len()];
     let mut seen = HashSet::new();
     for edge in &graph.edges {
         let parent = *ids.get(edge.from.as_str()).ok_or("Неизвестная вершина ребра")?;
         let dependency = *ids.get(edge.to.as_str()).ok_or("Неизвестная зависимость ребра")?;
-        if !seen.insert((parent, dependency)) { return Err("Повторяющееся ребро графа".into()); }
+        if !seen.insert((parent, dependency)) {
+            return Err("Повторяющееся ребро графа".into());
+        }
         pending[parent] += 1;
         dependents[dependency].push(parent);
     }
@@ -174,15 +193,21 @@ fn calculate_load_order(graph: &Graph) -> Result<LoadOrder, String> {
         order.push(graph.nodes[dependency].id.clone());
         for &parent in &dependents[dependency] {
             pending[parent] -= 1;
-            if pending[parent] == 0 { ready.push_back(parent); }
+            if pending[parent] == 0 {
+                ready.push_back(parent);
+            }
         }
     }
     let cycle_edges: Vec<Edge> = graph.edges.iter().filter(|edge| edge.cycle).cloned().collect();
     if order.len() != graph.nodes.len() {
-        if cycle_edges.is_empty() { return Err("Цикл не отмечен обратным ребром DFS".into()); }
+        if cycle_edges.is_empty() {
+            return Err("Цикл не отмечен обратным ребром DFS".into());
+        }
         return Ok(LoadOrder { possible: false, packages: Vec::new(), cycle_edges });
     }
-    if !cycle_edges.is_empty() { return Err("Ациклический граф ошибочно содержит отметку цикла".into()); }
+    if !cycle_edges.is_empty() {
+        return Err("Ациклический граф ошибочно содержит отметку цикла".into());
+    }
     Ok(LoadOrder { possible: true, packages: order, cycle_edges: Vec::new() })
 }
 

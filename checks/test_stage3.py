@@ -29,6 +29,22 @@ class StageThreeChecks(unittest.TestCase):
         self.graph.write_text('{"A": ["B"]}', encoding="utf-8")
         self.assertEqual(stage3.read_test_graph(self.config, "graph.json", "A"), {"A": ["B"]})
 
+    def test_long_example_contains_a_complete_chain(self):
+        config = ROOT / "examples/test-long/config.csv"
+        graph = stage3.read_test_graph(config, "repository.json", "A")
+        current = "A"
+        seen = set()
+        while True:
+            self.assertNotIn(current, seen)
+            seen.add(current)
+            dependencies = graph[current]
+            if not dependencies:
+                break
+            self.assertEqual(len(dependencies), 1)
+            current = dependencies[0]
+        self.assertEqual(len(seen), 400)
+        self.assertEqual(seen, set(graph))
+
     def test_rejects_invalid_graphs(self):
         for data in ('{"A": ["b"]}', '{"A": "B"}', '{"B": []}', '{"A": [], "A": []}', '{not json}'):
             with self.subTest(data=data):

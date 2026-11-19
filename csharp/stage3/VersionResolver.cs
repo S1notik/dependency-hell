@@ -158,9 +158,19 @@ public static class VersionResolver
         return rules;
     }
 
+    private static bool matchesPrereleaseBase(
+        string? candidatePre, long candidateMajor, long candidateMinor, long candidatePatch,
+        string? boundPre, long boundMajor, long boundMinor, long boundPatch)
+    {
+        return candidatePre is not null && boundPre is not null &&
+            candidateMajor == boundMajor && candidateMinor == boundMinor && candidatePatch == boundPatch;
+    }
+
     private static bool Matches(Sem candidate, List<Rule> rules)
     {
-        if (candidate.Pre is not null && !rules.Any(r => r.Bound.Pre is not null && r.Bound.Major == candidate.Major && r.Bound.Minor == candidate.Minor && r.Bound.Patch == candidate.Patch)) return false;
+        if (candidate.Pre is not null && !rules.Any(r => matchesPrereleaseBase(
+            candidate.Pre, candidate.Major, candidate.Minor, candidate.Patch,
+            r.Bound.Pre, r.Bound.Major, r.Bound.Minor, r.Bound.Patch))) return false;
         foreach (var rule in rules)
         {
             int n = candidate.CompareTo(rule.Bound);

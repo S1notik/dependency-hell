@@ -36,6 +36,33 @@ var stage3Cache = struct {
     bytes int
 }{items: make(map[string]cachedMetadata)}
 
+func read_registry_JSON(
+    response *http.Response,
+    successStatus int,
+    notFoundMessage string,
+    maxBytes int64,
+    readErrorMessage string,
+    invalidJSONMessage string,
+    target any,
+    valid func() bool,
+) (int, int, error) {
+    // Читаем ответ реестра, проверяем его размер и разбираем JSON с версиями.
+    if response.StatusCode == http.StatusNotFound {
+        return 0, http.StatusNotFound, fmt.Errorf("%s", notFoundMessage)
+    }
+    if response.StatusCode != successStatus {
+        return 0, http.StatusBadGateway, fmt.Errorf("реестр вернул HTTP %d", response.StatusCode)
+    }
+    data, err := io.ReadAll(io.LimitReader(response.Body, maxBytes+1))
+    if err != nil || int64(len(data)) > maxBytes {
+        return 0, http.StatusBadGateway, fmt.Errorf("%s", readErrorMessage)
+    }
+    if err := json.Unmarshal(data, target); err != nil || !valid() {
+        return 0, http.StatusBadGateway, fmt.Errorf("%s", invalidJSONMessage)
+    }
+    return len(data), http.StatusOK, nil
+}
+
 // Кэш нужен, чтобы не скачивать весь документ npm дважды на каждую версию.
 func getStage3Metadata(input RegistryRequest, client *http.Client) (Metadata, int, error) {
     empty := Metadata{}
@@ -66,33 +93,26 @@ func getStage3Metadata(input RegistryRequest, client *http.Client) (Metadata, in
     }
     defer cancel()
     defer response.Body.Close()
-    if response.StatusCode == http.StatusNotFound {
-        return empty, http.StatusNotFound, fmt.Errorf("пакет %s не найден", input.PackageName)
-    }
-    if response.StatusCode != http.StatusOK {
-        return empty, http.StatusBadGateway, fmt.Errorf("реестр вернул HTTP %d", response.StatusCode)
-    }
-    const limit = 64 << 20
-    data, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
-    if err != nil || len(data) > limit {
-        return empty, http.StatusBadGateway, fmt.Errorf("ошибка чтения или слишком большой ответ реестра")
-    }
     var result Metadata
-    if err := json.Unmarshal(data, &result); err != nil || len(result.Versions) == 0 {
-        return empty, http.StatusBadGateway, fmt.Errorf("неверный JSON или отсутствуют версии пакета")
-    }
+    size, status, err := read_registry_JSON(
+        response, http.StatusOK, fmt.Sprintf("пакет %s не найден", input.PackageName),
+        64<<20, "ошибка чтения или слишком большой ответ реестра",
+        "неверный JSON или отсутствуют версии пакета", &result,
+        func() bool { return len(result.Versions) > 0 },
+    )
+    if err != nil { return empty, status, err }
     stage3Cache.Lock()
     if old, ok := stage3Cache.items[key]; ok {
         stage3Cache.bytes -= old.size
         delete(stage3Cache.items, key)
     }
-    if len(stage3Cache.items) >= 128 || stage3Cache.bytes+len(data) > 64<<20 {
+    if len(stage3Cache.items) >= 128 || stage3Cache.bytes+size > 64<<20 {
         stage3Cache.items = make(map[string]cachedMetadata)
         stage3Cache.bytes = 0
     }
-    if len(data) <= 16<<20 {
-        stage3Cache.items[key] = cachedMetadata{value: result, expires: time.Now().Add(2 * time.Minute), size: len(data)}
-        stage3Cache.bytes += len(data)
+    if size <= 16<<20 {
+        stage3Cache.items[key] = cachedMetadata{value: result, expires: time.Now().Add(2 * time.Minute), size: size}
+        stage3Cache.bytes += size
     }
     stage3Cache.Unlock()
     return result, http.StatusOK, nil
